@@ -1,15 +1,61 @@
 import { CalendarIcon, ChartBarIcon, EmojiHappyIcon, PhotographIcon, XIcon } from '@heroicons/react/solid';
-import React, { useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
+import { db, storage } from "../firebase";
+import {
+  addDoc,
+  collection,
+  doc,
+  serverTimestamp,
+  updateDoc,
+} from "@firebase/firestore";
+import { getDownloadURL, ref, uploadString } from "@firebase/storage";
 // import 'emoji-mart/css/emoji-mart.css'
 // import { Picker } from 'emoji-mart'
 
 function Input() {
     const [input, setInput] = useState("");
     const [selectedFile, setSelectedFile] = useState(null);
-    const [showEmojis, setShowEmojis] = useState(false)
+    const [showEmojis, setShowEmojis] = useState(false);
+    const [loading, setLoading] = useState(false);
     const filePickerRef =useRef(null);
 
-    const addImageToPost = () => {};
+    const sendPost = async() => {
+        if (loading) return;
+        setLoading(true);
+
+        const docRef = await addDoc(collection(db, "post"), {
+            // id: session.user.uid,
+            // username: session.user.name,
+            // userImg: session.user.image,
+            // tag: session.user.tag,
+            text: input,
+            timestamp: serverTimestamp(),
+        })
+
+        const imageRef = ref(storage,`posts/${docRef.id}/image`);
+
+        if(selectedFile) {
+            await uploadString(imageRef,selectedFile,"data_url").then(async () => {
+                const downloadURL = await getDownloadURL(imageRef)
+                await updateDoc(doc(db,"posts",docRef.id), {
+                    image: downloadURL,
+                })
+            })
+        }
+    }
+
+    const addImageToPost = (e) => {
+        const reader = new FileReader();
+        if(e.target.files[0]) {
+            reader.readAsDataURL(e.target.files[0]);
+        }
+
+        reader.onload = (readerEvent) => {
+            setSelectedFile(readerEvent.target.result)
+        }
+    };
+
+
 
     // const addEmoji = (e:any) => {
     //     let sym = e.unified.split("-");
@@ -19,12 +65,15 @@ function Input() {
     //     setInput(input + emoji);
     // }
 
+
+
+
   return (
-    <div className={`border-b border-gray-700 p-3 flex space-x-3 overflow-y-scroll:visible`}>
+    <div className={`border-b border-gray-700 p-3 flex space-x-3 overflow-y-scroll:visible ${loading && "opacity-60"}`}>
         <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSsYKvPdloxi57q6s5IOVIBdARhkkvM4qPfOg&usqp=CAU"
     alt="" className="h-11 w-11 rounded-full cursor-pointer"/>
     <div className='w-full divide-y divide-gray-700'>
-        <div className={``}>
+        <div className={`${selectedFile && 'pb-7'} ${input && 'space-y-2.5'}`}>
             <textarea 
                 value={input} 
                 onChange={(e) => setInput(e.target.value)}
@@ -42,6 +91,7 @@ function Input() {
                 </div>
             )}
         </div>
+        {!loading && (
             <div className='flex items-center justify-between pt-2.5'>
                 <div className='flex items-center'>
                     <div className='icon' onClick={() => filePickerRef.current.click()}>
@@ -70,7 +120,14 @@ function Input() {
                             theme='dark'/>
                     )} */}
                 </div>
+                <button className='bg-[#1d9bf0] text-white rounded-full px-4 py-1.5 font-bold
+                shadow-md hover:bg-[#1a8cd8] disabled:hover:bg=[#1d9bf0] disabled:opacity-50
+                disabled:cursor-default'
+                disabled={!input.trim() && !selectedFile}
+                onClick={sendPost}
+                >Tweet</button>
             </div>
+            )}
         </div>
     </div>
   )
